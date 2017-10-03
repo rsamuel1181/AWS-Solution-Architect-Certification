@@ -13,7 +13,7 @@ S3 can act as a durable key-value store
 S3 buckets can have MFA Delete, on top of Versioning which prevents accidental deletion for highly critical objects
 Versioning is enabled on a bucket (for versioning the objects inside the bucket and keep all versions in that same bucket).
 Versioning cannot be removed once enabled, it can only be disabled.
-Max size of one S3 object = 5 TB
+Max size of one S3 object = 5 TB 
 
 
 S3 Bucket Replication:
