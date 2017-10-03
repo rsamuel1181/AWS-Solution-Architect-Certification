@@ -1,0 +1,339 @@
+S3:
+
+S3 file names and bucket names both must be unique globally
+S3 is designed to sustain loss of 2 AWS facilities concurrently (not clear AZ or Region), except for S3-RRS which can only sustain 1 facility loss.
+S3-IA is charged a retrieval fee. There is no retrieval delay like Glacier.
+S3-IA has three 9s availability. 99.9%
+Transfer Acceleration - quick connection between users and S3 buckets by way of edge location
+S3 bucket URL format: https://s3-us-east-1.amazonaws.com/MyTestBucket
+S3 security: Buckets are private by default. Two ways to secure them:
+One, Bucket policy: applied at bucket level. Two, ACL: applied at individual object level
+HTTP code for successful file upload to S3 = HTTP 200
+S3 can act as a durable key-value store
+S3 buckets can have MFA Delete, on top of Versioning which prevents accidental deletion for highly critical objects
+Versioning is enabled on a bucket (for versioning the objects inside the bucket and keep all versions in that same bucket).
+Versioning cannot be removed once enabled, it can only be disabled.
+Max size of one S3 object = 5 TB
+
+
+S3 Bucket Replication:
+	
+Usecase: DR
+To enable Replication, versioning must be set on BOTH source and target buckets.
+Replication will only apply to new objects
+But when an existing object is updated, all versions will be replicated to target
+You cannot replicate A -> B and A -> C. Only one target is possible.
+You cannot daisy chain either: A -> B and B -> C will not directly do A -> C
+Replication must be across different regions. Cannot do Sydey to Sydney replication.
+Deleting an object’s version at source will be replicated to target.
+If you delete an object at source and then undelete it later, the object says deleted at target. You have to manually undelete the object in Target.
+
+S3 Lifecycle Management:
+
+Lifecycle mgmt is at bucket level, not object level
+Will work with or without versioning
+Glacier will be charged for min 90 days
+S3-IA must be at least for 30 days and 128 KB.
+CDN (CloudFront):
+
+The collection of Edge Locations is called a Distribution
+A distribution can have more than one origin. Origin must have a unique origin ID within the Distribution
+A distribution has to be first Disabled before deletion. Cannot be deleted directly.
+To restrict access to content: Enable “Signed URLs or Signed Cookies” option
+For a user friendly URL for CloudFront, CNAMEs are used.
+To restrict direct access to Origin S3 buckets set “Restrict bucket acess = Yes”. This forces users to access content via CloudFront URL. Also:
+To enable access to S3 objects via CDN but restricts public access to those objects, create an Object Access Identity (OAI) for CloudFront, then grant acess to the objects in S3 to that OAI
+Lambda Function Associations: Specify Lambda function’s ARN to trigger it when one of the 4 following events occur in CDN: Viewer Request/Viewer Response/Origin Request/Origin Response
+Default Root Object: Set this property to the object name (index.html) that you want to open when user requests the URL (www.example.com)
+Distribution State = Disable/Enable. One stop switch to disable/enable viewer requests to CDN.
+
+Edge Location is separate from Regions and AZ’s
+Objects manually cleared from Edge Location Cache’s before TTL expires will be charged
+Two type of distributions: Web distribution and RTMP
+Edge Locations are NOT read-only
+You can restrict content or selectively deliver content by using WhiteList/BlackList under  GeoRestrictions
+
+
+Storage Gateway:
+
+Storage gateway enables hybrid storage between cloud and on-premise
+Frequently accessed data can be on-premise
+Implemented using either an on-premise Gateway device or via an EC2 instance or AWS Mgmt Console
+Use cases: Backup & Archive, DR, Tiered Storage, Process on-cloud and fetch results on-premise
+All gateways use S3 to store data. 
+File gateway uses NFS protocol. It access S3 objects through an IAM Role you set up.
+File Gateway CANNOT write files to EFS (only to S3).
+Even if your bucket is configured for S3 Transfer Acceleration, File Gateway WILL NOT use Transfer Acceleration endpoints.
+Stored Volume Gateway and Cached Volume Gateway both use iSCSI protocol and are block based (though S3 is object based). You can take EBS snapshots of data and create EBS Volumes that will be stored in S3.
+Stored Volume is stored on-premise and asynchronously backed up to S3.
+Cached Volume is stored in S3 and frequently accessed data is cached on-premise.
+Both Cached and Stored Volume gateways support block-based volumes (though saved in S3).
+Stored Volume gateway is backed up to S3 as EBS Snapshots
+Volume gateway compresses data before transmission and storage - reduces cost and latency
+Volume gateway is billed only for stored data, not the size of the volume created
+Gateway Virtual Tape Library can be put in Glacier. You can also use Lifecycle management to accomplish this.
+Storage Gateway connection can be done through high speed Direct Connect lines
+For Hybrid cloud, if site-to-AWS connection is via a VPN, it’s done through VPC Gateway. If it’s not via VPN or the Internet, but through a direct line Direct Connect is used.
+
+
+IAM:
+
+
+The IAM Policy known as AdminstratorAccess gives you permissions equivalent to root
+Groups = Collection of Users
+Roles can be attached Groups or Users
+Policy can be attached to Users, Groups or Roles
+New users have NO permission when first created
+Users can belong to multiple Groups
+Groups cannot belong to other Groups
+Roles are global, not Regional
+
+When a user is first created by default these are generated by AWS: Access Key ID, Secret Access Key. These two are only used to programmatically access AWS 
+Users can’t login with these two. A password needs to be generated.
+
+EMR and EC2 allows root access (allows you to login via SSH)
+To grant access to S3 or other objects using ACL, the method of identification must be: Canonical User ID (currently) or email address (old)
+
+Trusted Advisor Service does NOT do vulnerability scans on existing VPCs (really?)
+Trusted Advisor does NOT do vulnerability scans on your EC2 instances. But:
+Customers, with prior permission from AWS, can scan for vulnerabilities but should limit to their own ports and IP’s.
+
+VPC:
+
+When you create a VPC it spans all AZ’s in the Region
+A subnet cannot span AZs. But an AZ can have many subnets
+When you create new subnets within a custom VPC, by default they can communicate with each other, across availability zones
+A public subnet should have a Route table that’s associated to an IGW (more than it should have an ACL with outbound 0.0.0.0/0)
+Subnets are by default associated with the “main route table” or default route table. So DO NOT open the main route table out to the Internet. That poses a security risk.
+When you want a public subnet, create a new route table that points to IG and associate it with that subnet. So Subnets are private by default
+
+CIDR intranet IP address ranges (10.0.0.0/24 range has 256 IP’s) should be assigned to subnets for EC2 instances in the subnet to use
+First 4 and last IP address in each range is reserved (total 5 IP’s reserved).
+
+Route Tables are used for outbound traffic leaving each subnet
+One VPC can have only one Internet Gateway
+To make it easy, all EC2 instances are assigned to a default VPC (which you can change).
+In default VPC you will have a main route table, ACL and a security group created by default
+If you delete default VPC you will need to contact AWS to restore it.
+VPC Peering Use case: Be able to connect to instances in another AWS account or in another VPC in the same AWS account.
+VPC Peering cannot be transitive (always direct link from source VPC to target VPC).
+Peering is configured as a star network, but the legs of star can’t talk to each other. Legs will have to directly peered.
+NAT Instance size could be a bottleneck to traffic for private subnets. The solution is to increase NAT instance size.
+Unlike NAT Instance, NAT Gateway is NOT attached to a security group, scale automatically, automatically assigned a public IP address and NO need to disable source/destination checks. All this has to be manually done in the case of NAT Instance.
+NAT device lets outbound traffic from private subnet but prevent unsolicited inbound requests from the Internet (other subnets in the VPC can send requests to pvt subnet).
+NAT instance has to be behind a Security Group, so select an SG but you don't need to select any protocols (ssh/https etc). Amazon takes care of it.
+NAT Gateway is managed by AWS for OS/autoscaling etc.
+
+5 VPCs per Region is the default.
+AWS Management re-evaluates risks at least biannually.	
+
+Read this page:  http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Security.html
+Default ACL allow ALL traffic by default.
+When you create a Custom ACL it blocks all traffic by default (in contrast with default ACL).
+One subnet can only be associated with one ACL. But one ACL can point to multiple subnets.
+Security Group is at Instance Level. But ACL is at subnet level so applies to all EC2 instances in that subnet.
+Because ACLs are stateless rules must be set for inbound and outbound separately for a given port. For instance, to allow traffic through Port 22 for SSH must be configured for inbound as well as outbound if you want it both ways.
+You cannot block an IP using Security Group, you have to use ACL. So client IP’s or server Ports can only be blocked at subnet level (with ACL). They cannot be blocked at Instance Level (with security group)
+High availability of ELB is achieved by having at least 2 subnets for ELB to balance the load between. Two subnets mean 2 AZ’s (not always). This is also how we scale up Bastions (administrative NAT Gateway)
+Bastion sits on a public subnet and is used to troubleshoot EC2 instances in private subnets (because they are private). NAT instance/gateway (sits on a public subnet) is used to provide Internet traffic in private subnets.
+
+
+
+3 different levels of AWS Service: Enterprise, Business, Developer
+
+EC2:
+
+Two types of Virtualization available on EC2: Para-Virtual (PV) and Hardware Virtual Machine (HVM)
+Placement Groups can only be placed within AZ not across AZ (makes sense because:)
+When Low Latency, High Throughput or Both are needed, use PG. It’s 10Gbps network within AZ.
+You can’t move an existing EC2 instance into a PG. However you can accomplish this via existing instance-to-AMI-to-new instance moved into PG.
+EC2 billing commences on the booting of an AMI and stops at the termination of the instance.
+
+It is possible to transfer a reserved instance from one Availability Zone to another
+No option provided within AWS to encrypt root volume, but you can encrypt an AMI of that root volume. Additional EBS volumes can be encrypted within AWS.
+Multiple security groups can be attached to an EC2 instance because security groups can only have allow rules, it can’t have deny rules, so no conflicts possible.
+To deny an IP address use, ACLs instead
+Security Group by default allow traffic out, deny traffic in.
+Roles can be attached to EC2 instances directly. This is much safer than storing access key id and secret key access key on individual EC2 instances. In the past you had to assign Roles while the instance is being provisioned, but now you can assign after.
+To get EC2 instance metadata via cmd line: curl http://169.254.169.254/latest/meta-data
+EC2 Pricing Models: On demand, Spot, Reserved, Dedicated Hosts
+Dedicated is used when you don’t want to use Multi-tenant (for example regulatory requirements)
+
+The 20 EC2 instance limit is per region (not AZ or VPC)
+For Hybrid cloud, if site-to-AWS connection is via a VPN, it’s done through VPC Gateway. If it’s not via VPN or the Internet, but through a direct line Direct Connect is used.
+
+Elastic IP is sticky for EC2-VPC and will be re-assigned after restart for EC2-Classic.
+5 Elastic IPs per Region (can be requested for increase)
+All EC2 instance don’t need their own Elastic IP - just the one that faces web traffic from Internet will need it. Compute resources, DBs etc can survive with Private IPs that are internal to the subnet/VPC.
+
+
+Route53:
+
+Route53 propagates DNS updates like ip changes globally in 60 sec.
+Route53 has a special record type called Alias record to map zone apex (example.com) to ELB name (elb.123elb.amazonaws.com) or to your S3 bucket that hosts static websites.
+If S3 is not hosting a static website use CNAME record instead to map to your bucket. CNAME queries costs but Alias record queries are free. (most qns. Expect Alias Name as answer)
+Geo routing=Localized content with granularity at continent/country/state level
+Latency based routing=global latency management across Regions
+Weighted RR is what the name suggests.
+Simple routing
+Failover routing (configure production and DR)
+DNS Failover consists of 2 parts: health check+Failover
+If you have ELB, just mention ELB name in Route53 Alias record and check “Evaluate Target Health”, everything else will be taken care of for DNS Failover.
+Route53 creates NS and SOA records by default.
+
+
+
+Snowball shipping is done thru Import/Export
+Snowball can import to S3 or export from S3. If it has to be exported from Glacier, the files have to moved S3 first and then export from S3	
+
+EBS:
+
+EBS volumes can be changed on the fly EXCEPT magnetic. 
+To change Magnetic to another disk type, stop the EC2 instance (for app consistency), take a snapshot, then create a new volume FROM that snapshot and while doing that change the volume type from magnetic.
+If you change a volume on the fly, you should wait 6 hrs before making another volume type change
+You CANNOT scale down EBS volume size. You can only scale up (200 GB to 500 GB is possible)
+EBS volumes must be in the same AZ as the EC2 instances
+Amazon recommends against RAID 5 for EBS volumes
+Use case for implementing EBS on RAID: implement a non-supported DB like Cassandra on EC2
+3 methods to take snapshot of EBS RAID array: Freeze file system, Unmount RAID array, Shutdown the associated EC2 instance (most popular/easy).
+To take Snapshot of root volume, the EC2 instance MUST be stopped
+While taking EBS snapshots, if source is encrypted, target will be encrypted too
+You must stop the instance before taking a snapshot
+Encrypted snapshots cannot be shared with other AWS accounts or made public.
+Use case for EBS Snapshot: You have set up an EC2 instance, installed web server, patches, configured EBS volumes etc. When you want to scale up to more instances, you can use the AMI created from a stable Snapshot of the original EC2 instance.
+First Snapshot always takes most time, subsequent snapshots are faster. This is because snapshots are basically incremental.
+EBS Volumes are faster to create than Instance Store Volumes - these are the two types of AMI’s. This is because Instance Store volumes are created from a template stored in S3, while EBS volumes are created from EBS snapshot
+Instance Store volumes cannot be stopped, if underlying host fails you’ll lose data. They are called Ephemeral
+In the case of both AMI’s, Root volume will be deleted on instance “termination”. But for EBS backed AMI, you can specify a property to keep root volume on termination
+AMI’s are strictly regional. You cannot by any means copy AMI to a region other than it was created.
+EBS Snapshots should be accessed through EC2 API and NOT through S3 API
+You CAN encrypt EBS boot volumes
+
+EFS:
+
+EFS volumes span AZ’s not regions (Elastic File System)
+EFS volumes must sit behind the same security group as the EC2 instances they are attached to.
+EFS can be connected to multiple EC2 instances, but EBS cannot be. Also EFS do not need any provisioning
+Use case: Shared drive
+Uses NFSv4
+Multi-AZ but single-Region
+
+Elastic Load Balancer:
+AWS internally handles IP address of ELB, you are only given a DNS name
+Difference between Classic ELB and the new Application ELB is that the latter can decide load balancing based on application content (thus helping with microservices, containers etc)
+
+
+Cloudwatch - Dashboards, Alarms, Events (that can be set to trigger things), Logs (aggregate/monitor)
+Standard monitoring = every 5 minutes
+Detailed monitoring = every 1 minute (costs extra)
+Cloudwatch is real time stream of Events so you can take or configure to take actions based on those events.
+CloudTrail records API calls etc. CloudTrail recording can be used for compliance.
+AWS Config keeps track of AWS resources in your account, thus helping with security and governance. AWS Config helps with determining if you are compliant.
+
+
+Autoscaling group can be configured to run multi-AZ (and you should) by selecting AZ in Subnet section of ASG
+Launch Configuration is a template used by Autoscaling to launch EC2 instances
+Before setting up ASG you need to configure Launch Configurations (this is the same set up and screen navigation as setting up an EC2 instance, except at the end it says “Create LC” - specify AMI, storage options, security group etc)
+If you delete autoscaling group, the instances in that group will be terminated.
+ASG cannot span Regions. They can span AZs within a given Region
+ASG do NOT add Volumes when they reach capacity. They add EC2 instances and these instances would have volumes attached to it. You can use EC2 API to add volumes to an existing Instance.
+
+
+RDS:
+
+RDS backups are enabled by default and goes to S3. You’re not charged for backups in S3 and you get equivalent size of RDS storage in S3.
+Auto backups will be deleted with RDS deletion but snapshots will not be deleted with RDS deletion
+When restoring a snapshot, you have to restore it to a new DB instance
+Multi AZ in RDS is for DR only. Performance is achieved through Read Replicas instead.
+Similarly Read Replicas are used for scaling, not DR.
+Upto 5 Read Replicas of main DB is possible. SQL Server and Oracle doesn’t support RR.
+Read Replicas are not multi AZ but RRs of multi AZ DB’s are allowed.
+Each RR has it’s own DNS end point
+RRs can be promoted to their own DBs (read-write) for MySQL and MariaDB
+If you want to scale up storage/instance on the fly (push-button) use DynamoDB instead of RDS
+RDS maximum backup retention period = 35 days
+In RDS, maximum possible size for MS SQL Server Express Edition Instance = 10 GB
+
+Dynamo DB:
+
+Can be either document DB or key-value DB
+Eventual Consistency Model by default.
+Can operate as Strong Consistency Model
+Multi AZ with Read Redundancy across AZ’s by default
+
+Redshift:
+
+Redshift block size = 1 MB (1024 KB)
+You will not be charged for Leader Node but Compute Nodes
+You can have up to 128 Compute Nodes under the Leader Node
+Redshift is not designed for high availability (reporting) so it’s NOT multi AZ
+
+ElastiCache:
+
+AWS in-memory DB service. Two types of in-memory products are supported: Memcached and Redis
+Usecase: DB is under performance stress, read intensive, not frequently changing.
+
+Aurora:
+
+Aurora auto-scales but is not as on-the-fly as DynamoDB. There is a tiny downtime involved.
+Aurora has 2 copies of your data in a minimum of 3 AZ’s. So there’s always 6 copies.
+Aurora can withstand loss of 2 copies for writes and loss of 3 copies for reads
+Aurora scans data blocks continuously and repairs automatically
+Aurora can have 15 Replicas. These are separate 15 databases.
+MySQL Replicas can have upto 5 Replicas
+Aurora can failover to Replicas, MySQL can’t because they are just Read Replicas
+
+
+General DB notes:
+
+Multi AZ means if one AZ goes down the DB instances will automatically be connected to the available AZ, no manual intervention needed.
+
+
+SNS:
+
+Amazon’s SNS has the following subscribers: Lambda, SQS, HTTPS, Email, SMS
+
+SQS:
+
+SQS is pull-based, NOT push-based
+Visibility Timeout is the amount of time the message will be unavailable for other readers after a reader has started reading that message. This prevents delivering the same message twice.
+Max visibility timeout is 12 hrs. So if you have delays  more than that SQS isn’t the solution.
+SQS guarantees messages will be delivered AT LEAST once. There is a chance of delivering twice (Reader is yet to finish, but Visibility Timeout expired thus making SQS bring up the message again with a new Visibility Timeout, making the message duplicate)
+Set Long Polling to save cost. Otherwise it will short poll, that is keep polling for any new messages on SQS
+SQS max message retention period is 14 days
+
+SWF:
+
+Simple Workflow Service is for tasks (like Autosys) where as SQS is for messages
+Retention Period for SWF is 1 year
+Components of SWF: WF Starters, Deciders, Activity Workers
+SWF co-ordinate both synchronous and asynchronous tasks
+
+SNS:
+
+SNS is most commonly encountered in Auto Scaling Groups (receive notification while scaling up)
+SNS publishes notifications to the subscribers of a topic that you create. Topic has an ARN.
+SNS notifications are instantly pushed (no polling) whereas SQS is pull based (poll and download new messages)
+
+API Gateway:
+
+Entry point to Lambda functions/applications. Also caches lambda functions for faster access.
+API Gateway automatically scales. To avoid malicious flooding, you can throttle
+Set Cross Origin Resource Sharing (CORS) property to bypass the error “Origin policy cannot be read at the remote resource”. Same-origin is a basic web standard that says all resources for a webpage should be coming from the same domain name - if you have an image that has to come from a different domain, that’s a bad design. But CORS will let you do that (bad) design.
+
+Kinesis:
+
+Streams use sharding and receive streams of data
+Firehose doesn’t hold the data, but query it using Lambda
+Analytics sits on top of it all.
+To increase streaming capacity increase the sharding
+Firehose target is usually S3 or Elastic Search cluster, not directly Redshift.
+Kinesis data retention period = 7 days 
+
+
+Max response time for a Business Level Premium Support Case = 1 hour
+
+Resource Groups allows us to spin up or inherit resources based on tags (key-value pair) attached to existing resources.
+Helps you find different resources (ELB, EMR, EC2, S3 etc) that have been attached with a specific tag (Employee Dept = Finance), edit tags, attach new tags etc.
+
+Organizations helps you manage multiple AWS Accounts and also with consolidated billing
